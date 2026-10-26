@@ -1,0 +1,24 @@
+{
+  "name": "bookleaf-portal",
+  "version": "1.0.0",
+  "description": "BookLeaf Author Support & Communication Portal with AI-assisted response generation",
+  "private": true,
+  "workspaces": [
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "setup": "npm install && npm run db:setup",
+    "db:setup": "cd server && npm run db:push && npm run db:seed",
+    "dev": "concurrently -n \"SERVER,CLIENT\" -c \"blue,green\" \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "cd server && npm run dev",
+    "dev:client": "cd client && npm run dev",
+    "build": "cd client && npm run build && cd ../server && npm run build",
+    "start": "cd server && npm start"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  },
+  "author": "Full Stack Developer Candidate",
+  "license": "MIT"
+}
