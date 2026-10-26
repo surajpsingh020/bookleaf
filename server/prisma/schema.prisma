@@ -1,0 +1,83 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  passwordHash String
+  role         String    // "author" | "admin"
+  authorId     String?   @unique
+  author       Author?   @relation(fields: [authorId], references: [authorId], onDelete: Cascade)
+  createdAt    DateTime  @default(now())
+}
+
+model Author {
+  authorId   String    @id
+  name       String
+  email      String    @unique
+  phone      String
+  city       String
+  joinedDate DateTime
+  books      Book[]
+  tickets    Ticket[]
+  user       User?
+}
+
+model Book {
+  bookId                String    @id
+  authorId              String
+  author                Author    @relation(fields: [authorId], references: [authorId], onDelete: Cascade)
+  title                 String
+  isbn                  String
+  genre                 String
+  publicationDate       DateTime?
+  status                String    // "Published & Live" | "In Production - Cover Design" | etc.
+  mrp                   Float?
+  authorRoyaltyPerCopy  Float?
+  totalCopiesSold       Int       @default(0)
+  totalRoyaltyEarned    Float     @default(0)
+  royaltyPaid           Float     @default(0)
+  royaltyPending        Float     @default(0)
+  lastRoyaltyPayoutDate DateTime?
+  printPartner          String?
+  availableOn           String    // JSON encoded array of platforms
+  tickets               Ticket[]
+}
+
+model Ticket {
+  id                 String          @id @default(uuid())
+  ticketNumber       String          @unique // e.g. BL-TKT-1001
+  authorId           String
+  author             Author          @relation(fields: [authorId], references: [authorId], onDelete: Cascade)
+  bookId             String?
+  book               Book?           @relation(fields: [bookId], references: [bookId], onDelete: SetNull)
+  subject            String
+  description        String
+  status             String          @default("Open") // Open | In Progress | Resolved | Closed
+  category           String          // Auto-classified or override
+  priority           String          @default("Medium") // Critical | High | Medium | Low
+  aiClassification   String?
+  aiPriority         String?
+  aiDraftResponse    String?
+  assignedTo         String?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  messages           TicketMessage[]
+}
+
+model TicketMessage {
+  id             String   @id @default(uuid())
+  ticketId       String
+  ticket         Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  senderRole     String   // "author" | "admin"
+  senderName     String
+  messageText    String
+  isInternalNote Boolean  @default(false)
+  createdAt      DateTime @default(now())
+}
