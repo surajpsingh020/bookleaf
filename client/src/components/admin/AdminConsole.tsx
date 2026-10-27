@@ -37,6 +37,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ realtimeTicketUpdate
   const [assignedAgent, setAssignedAgent] = useState('');
   const [submittingAction, setSubmittingAction] = useState(false);
   const [regeneratingDraft, setRegeneratingDraft] = useState(false);
+  const [draftSuccessNotice, setDraftSuccessNotice] = useState(false);
 
   const fetchTicketsAndStats = async () => {
     try {
@@ -90,6 +91,9 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ realtimeTicketUpdate
 
     if (selectedTicket && selectedTicket.id === realtimeTicketUpdate.id) {
       setSelectedTicket(realtimeTicketUpdate);
+      if (realtimeTicketUpdate.aiDraftResponse) {
+        setEditableDraft(realtimeTicketUpdate.aiDraftResponse);
+      }
     }
   }, [realtimeTicketUpdate]);
 
@@ -186,6 +190,8 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ realtimeTicketUpdate
       const updated = await api.regenerateAiDraft(selectedTicket.id);
       setSelectedTicket(updated);
       setEditableDraft(updated.aiDraftResponse || '');
+      setDraftSuccessNotice(true);
+      setTimeout(() => setDraftSuccessNotice(false), 4000);
     } catch (err) {
       console.error('Failed to regenerate draft:', err);
     } finally {
@@ -587,14 +593,21 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ realtimeTicketUpdate
                   </div>
 
                   {activeTab === 'response' && (
-                    <button
-                      onClick={handleRegenerateDraft}
-                      disabled={regeneratingDraft}
-                      className="text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 transition"
-                    >
-                      <RotateCw className={`h-3 w-3 ${regeneratingDraft ? 'animate-spin' : ''}`} />
-                      <span>{regeneratingDraft ? 'Regenerating...' : 'Re-Draft with AI'}</span>
-                    </button>
+                    <div className="flex items-center gap-2.5">
+                      {draftSuccessNotice && (
+                        <span className="text-[11px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                          ✓ Draft refreshed with latest question!
+                        </span>
+                      )}
+                      <button
+                        onClick={handleRegenerateDraft}
+                        disabled={regeneratingDraft}
+                        className="text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 transition"
+                      >
+                        <RotateCw className={`h-3 w-3 ${regeneratingDraft ? 'animate-spin' : ''}`} />
+                        <span>{regeneratingDraft ? 'Drafting...' : 'Re-Draft with AI'}</span>
+                      </button>
+                    </div>
                   )}
                 </div>
 

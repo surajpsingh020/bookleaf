@@ -300,12 +300,32 @@ export class TicketService {
     const ticket = await this.getAdminTicketById(ticketId);
     if (!ticket) throw new Error('Ticket not found');
 
+    const nonInternalMessages = (ticket.messages || []).filter((m) => !m.isInternalNote);
+    const lastAuthorMessage = [...nonInternalMessages]
+      .reverse()
+      .find((m) => m.senderRole === 'author');
+
+    const conversationSummary = nonInternalMessages
+      .map(
+        (m) =>
+          `${m.senderRole === 'author' ? ticket.author.name : 'BookLeaf Support Desk'}: ${m.messageText}`
+      )
+      .join('\n');
+
+    const effectiveSubject = lastAuthorMessage
+      ? `${ticket.subject} (Latest Author Query: "${lastAuthorMessage.messageText}")`
+      : ticket.subject;
+
+    const effectiveDescription = lastAuthorMessage
+      ? `The author's latest question is: "${lastAuthorMessage.messageText}".\n\nFull conversation history:\n${conversationSummary}\n\nOriginal Ticket Context: ${ticket.description}`
+      : `${ticket.description}\n\nConversation History:\n${conversationSummary}`;
+
     const draft = await aiService.generateDraftResponse({
-      subject: ticket.subject,
-      description: ticket.description,
+      subject: effectiveSubject,
+      description: effectiveDescription,
       category: ticket.category as TicketCategory,
       author: { name: ticket.author.name, joinedDate: ticket.author.joinedDate },
-      book: ticket.book
+      book: ticket.book,
     });
 
     const updated = await prisma.ticket.update({
@@ -314,8 +334,8 @@ export class TicketService {
       include: {
         author: true,
         book: true,
-        messages: { orderBy: { createdAt: 'asc' } }
-      }
+        messages: { orderBy: { createdAt: 'asc' } },
+      },
     });
 
     sseService.broadcastTicketUpdate(updated, 'ticket_updated');

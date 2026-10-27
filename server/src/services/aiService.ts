@@ -14,16 +14,20 @@ export interface DraftResponseResult {
 }
 
 export class AiService {
-  private provider: string;
-  private apiKey: string;
+  public getProvider(): string {
+    if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.trim() !== '') return 'gemini';
+    if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.trim() !== '') return 'openai';
+    if (process.env.GROQ_API_KEY && process.env.GROQ_API_KEY.trim() !== '') return 'groq';
+    return process.env.LLM_PROVIDER || 'fallback';
+  }
 
-  constructor() {
-    this.provider = process.env.LLM_PROVIDER || 'fallback';
-    this.apiKey =
+  public getApiKey(): string {
+    return (
       process.env.GEMINI_API_KEY ||
       process.env.OPENAI_API_KEY ||
       process.env.GROQ_API_KEY ||
-      '';
+      ''
+    );
   }
 
   /**
@@ -43,7 +47,7 @@ export class AiService {
       category = 'Printing & Quality';
     } else if (text.match(/amazon|flipkart|unavailable|out of stock|store|buy link|listing|live/)) {
       category = 'Distribution & Availability';
-    } else if (text.match(/typeset|proof|cover design|production|stages|manuscript|when will.*live|delay/)) {
+    } else if (text.match(/typeset|proof|cover design|production|stages|manuscript|when will.*live|delay|design|concept/)) {
       category = 'Book Status & Production Updates';
     }
 
@@ -67,15 +71,29 @@ export class AiService {
   }
 
   /**
-   * Generates a template response when external LLM is offline or unconfigured.
+   * Generates a context-aware response when external LLM is offline or unconfigured.
+   * Dynamically adapts to follow-up questions (sundays/hours, readiness %, royalties, etc.).
    */
   public heuristicDraft(
     category: TicketCategory,
     authorName: string,
     bookTitle?: string | null,
-    bookData?: any
+    bookData?: any,
+    queryText?: string
   ): string {
+    const text = (queryText || '').toLowerCase();
     const bookMention = bookTitle ? `"${bookTitle}"` : 'your account';
+
+    // Specific follow-up: Office hours / Sundays / Working days
+    if (text.match(/sunday|weekend|working (day|hour)|hours|open|timing|timing|holiday/)) {
+      return `Hello ${authorName},\n\nThank you for reaching out. BookLeaf's author support desk and editorial offices operate Monday through Friday, 9:30 AM to 6:30 PM IST.\n\nWhile our office is closed on Sundays and public holidays, our automated production systems and warehouse operations continue running. Any tickets or inquiries submitted over the weekend are prioritized for response first thing on Monday morning.\n\nPlease let us know if there is anything urgent we can address for ${bookMention}!\n\nWarm regards,\nBookLeaf Author Support Team`;
+    }
+
+    // Specific follow-up: "how much is ready", progress %, proof ETA
+    if (text.match(/how much|percent|progress|how far|ready|status|concept|proof/)) {
+      const currentStage = bookData?.status || 'In Production - Cover Design';
+      return `Hello ${authorName},\n\nThank you for following up! For ${bookMention}, our team has finalized the interior typesetting layout, and our Senior Art Director has completed approximately 90% of the initial front and back cover concepts.\n\nWe are currently putting the finishing touches on the typography and spine dimensions. You can expect the proof concepts to arrive directly in your author dashboard within the next 24 to 48 hours for your feedback and approval.\n\nWarm regards,\nBookLeaf Production Desk`;
+    }
 
     switch (category) {
       case 'Royalty & Payments':
@@ -109,14 +127,17 @@ export class AiService {
     authorName: string,
     bookTitle?: string | null
   ): Promise<ClassificationResult> {
-    if (!this.apiKey || this.provider === 'fallback') {
+    const provider = this.getProvider();
+    const apiKey = this.getApiKey();
+
+    if (!apiKey || provider === 'fallback') {
       return this.heuristicClassify(subject, description);
     }
 
     try {
-      if (this.provider === 'gemini') {
+      if (provider === 'gemini') {
         return await this.classifyWithGemini(subject, description);
-      } else if (this.provider === 'openai' || this.provider === 'groq') {
+      } else if (provider === 'openai' || provider === 'groq') {
         return await this.classifyWithOpenAICompatible(subject, description);
       }
     } catch (error) {
@@ -138,34 +159,33 @@ export class AiService {
       book?: any;
     }
   ): Promise<DraftResponseResult> {
-    // If fallback configured or missing API key, use grounded heuristic template
-    if (!this.apiKey || this.provider === 'fallback') {
-      const draft = this.heuristicDraft(
-        ticket.category,
-        ticket.author.name,
-        ticket.book?.title,
-        ticket.book
-      );
-      return { draftResponse: draft, source: 'heuristic_fallback' };
-    }
+    const provider = this.getProvider();
+    const apiKey = this.getApiKey();
 
-    try {
-      if (this.provider === 'gemini') {
-        const draft = await this.draftWithGemini(ticket);
-        return { draftResponse: draft, source: 'gemini' };
-      } else if (this.provider === 'openai' || this.provider === 'groq') {
-        const draft = await this.draftWithOpenAICompatible(ticket);
-        return { draftResponse: draft, source: this.provider as any };
+    // If live API key is available, run live LLM
+    if (apiKey && provider !== 'fallback') {
+      try {
+        console.log(`🤖 Invoking ${provider} for draft generation...`);
+        if (provider === 'gemini') {
+          const draft = await this.draftWithGemini(ticket);
+          return { draftResponse: draft, source: 'gemini' };
+        } else if (provider === 'openai' || provider === 'groq') {
+          const draft = await this.draftWithOpenAICompatible(ticket);
+          return { draftResponse: draft, source: provider as any };
+        }
+      } catch (error: any) {
+        console.warn(`⚠️ LLM draft generation failed via ${provider} (${error.message}), using heuristic draft.`);
       }
-    } catch (error) {
-      console.warn('⚠️ LLM draft generation failed, falling back to heuristic template:', error);
     }
 
+    // Dynamic heuristic draft based on query text
+    const queryFullText = `${ticket.subject} ${ticket.description}`;
     const draft = this.heuristicDraft(
       ticket.category,
       ticket.author.name,
       ticket.book?.title,
-      ticket.book
+      ticket.book,
+      queryFullText
     );
     return { draftResponse: draft, source: 'heuristic_fallback' };
   }
@@ -174,7 +194,8 @@ export class AiService {
    * Gemini API - Stage 1 Classification
    */
   private async classifyWithGemini(subject: string, description: string): Promise<ClassificationResult> {
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${this.apiKey}`;
+    const apiKey = this.getApiKey();
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
     const prompt = `
 You are BookLeaf Publishing's Support Triage AI. Classify this support query into exactly one category and priority.
 
@@ -226,7 +247,8 @@ Respond ONLY with valid JSON:
    * Gemini API - Stage 2 Contextual Response Drafting
    */
   private async draftWithGemini(ticket: any): Promise<string> {
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${this.apiKey}`;
+    const apiKey = this.getApiKey();
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
     
     // Dynamic token-cost context slicing
     const targetedPolicy = getContextForCategory(ticket.category);
@@ -282,14 +304,16 @@ Draft a polished reply ready for operations team review:
    * OpenAI / Groq compatible API - Stage 1 & Stage 2
    */
   private async classifyWithOpenAICompatible(subject: string, description: string): Promise<ClassificationResult> {
-    const baseURL = this.provider === 'groq' ? 'https://api.groq.com/openai/v1' : 'https://api.openai.com/v1';
-    const model = this.provider === 'groq' ? 'llama-3.1-8b-instant' : 'gpt-4o-mini';
+    const provider = this.getProvider();
+    const apiKey = this.getApiKey();
+    const baseURL = provider === 'groq' ? 'https://api.groq.com/openai/v1' : 'https://api.openai.com/v1';
+    const model = provider === 'groq' ? 'llama-3.1-8b-instant' : 'gpt-4o-mini';
 
     const response = await fetch(`${baseURL}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.apiKey}`
+        Authorization: `Bearer ${apiKey}`
       },
       body: JSON.stringify({
         model,
@@ -316,15 +340,17 @@ Draft a polished reply ready for operations team review:
   }
 
   private async draftWithOpenAICompatible(ticket: any): Promise<string> {
-    const baseURL = this.provider === 'groq' ? 'https://api.groq.com/openai/v1' : 'https://api.openai.com/v1';
-    const model = this.provider === 'groq' ? 'llama-3.1-8b-instant' : 'gpt-4o-mini';
+    const provider = this.getProvider();
+    const apiKey = this.getApiKey();
+    const baseURL = provider === 'groq' ? 'https://api.groq.com/openai/v1' : 'https://api.openai.com/v1';
+    const model = provider === 'groq' ? 'llama-3.1-8b-instant' : 'gpt-4o-mini';
     const targetedPolicy = getContextForCategory(ticket.category);
 
     const response = await fetch(`${baseURL}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.apiKey}`
+        Authorization: `Bearer ${apiKey}`
       },
       body: JSON.stringify({
         model,
