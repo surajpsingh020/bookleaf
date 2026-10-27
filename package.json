@@ -14,7 +14,8 @@
     "dev:server": "cd server && npm run dev",
     "dev:client": "cd client && npm run dev",
     "build": "npm run db:setup && cd client && npm run build && cd ../server && npm run build",
-    "start": "cd server && npm start"
+    "start": "cd server && npm start",
+    "test": "npx tsx tests/edgeCasesTest.ts"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
