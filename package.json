@@ -13,7 +13,7 @@
     "dev": "concurrently -n \"SERVER,CLIENT\" -c \"blue,green\" \"npm run dev:server\" \"npm run dev:client\"",
     "dev:server": "cd server && npm run dev",
     "dev:client": "cd client && npm run dev",
-    "build": "cd client && npm run build && cd ../server && npm run build",
+    "build": "npm run db:setup && cd client && npm run build && cd ../server && npm run build",
     "start": "cd server && npm start"
   },
   "devDependencies": {

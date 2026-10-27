@@ -42,8 +42,14 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/realtime', realtimeRoutes);
 
 // Optional: Serve client build if available (for production single-port deployment)
-const clientBuildPath = path.join(process.cwd(), '../client/dist');
-if (fs.existsSync(clientBuildPath)) {
+const possibleClientPaths = [
+  path.join(process.cwd(), '../client/dist'),
+  path.join(process.cwd(), 'client/dist'),
+  path.join(__dirname, '../../client/dist'),
+  path.join(__dirname, '../../../client/dist')
+];
+const clientBuildPath = possibleClientPaths.find((p) => fs.existsSync(p));
+if (clientBuildPath) {
   app.use(express.static(clientBuildPath));
   app.get('*', (req: Request, res: Response) => {
     if (!req.path.startsWith('/api')) {
