@@ -2,6 +2,7 @@
 
 > **Full-Stack Developer Technical Assessment**  
 > **Repository:** [https://github.com/surajpsingh020/bookleaf.git](https://github.com/surajpsingh020/bookleaf.git)  
+> **Live Demo URL:** [https://bookleaf-portal-l056.onrender.com](https://bookleaf-portal-l056.onrender.com)  
 > **Domain:** BookLeaf Publishing (1,200+ monthly releases, 22,000+ catalog)  
 > **Architecture:** Decoupled Monorepo (Node.js/Express + React 18/TypeScript + Server-Sent Events + SQLite/Prisma)
 
