@@ -257,6 +257,34 @@ export class TicketService {
       }
     }
 
+    // If an author sends a follow-up message, generate an updated AI draft for the admin
+    if (senderRole === 'author') {
+      try {
+        const ticketWithContext = await prisma.ticket.findUnique({
+          where: { id: ticketId },
+          include: { author: true, book: true }
+        });
+        if (ticketWithContext) {
+          const freshDraft = await aiService.generateDraftResponse({
+            subject: `${ticketWithContext.subject} (Follow-up: "${messageText}")`,
+            description: `Author follow-up query: "${messageText}". Previous context: ${ticketWithContext.description}`,
+            category: ticketWithContext.category as any,
+            author: { name: ticketWithContext.author.name, joinedDate: ticketWithContext.author.joinedDate },
+            book: ticketWithContext.book
+          });
+          await prisma.ticket.update({
+            where: { id: ticketId },
+            data: {
+              status: 'In Progress',
+              aiDraftResponse: freshDraft.draftResponse
+            }
+          });
+        }
+      } catch (e) {
+        console.error('Failed to update AI draft on author follow-up:', e);
+      }
+    }
+
     const fullTicket = await this.getAdminTicketById(ticketId);
     if (fullTicket) {
       sseService.broadcastTicketUpdate(fullTicket, 'new_message');
