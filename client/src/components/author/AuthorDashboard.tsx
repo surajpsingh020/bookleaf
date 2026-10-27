@@ -56,7 +56,9 @@ export const AuthorDashboard: React.FC<AuthorDashboardProps> = ({ realtimeTicket
     if (!realtimeTicketUpdate) return;
 
     setTickets((prev) => {
-      const index = prev.findIndex((t) => t.id === realtimeTicketUpdate.id);
+      const index = prev.findIndex(
+        (t) => t.id === realtimeTicketUpdate.id || t.ticketNumber === realtimeTicketUpdate.ticketNumber
+      );
       if (index >= 0) {
         const updated = [...prev];
         updated[index] = realtimeTicketUpdate;
@@ -309,7 +311,9 @@ export const AuthorDashboard: React.FC<AuthorDashboardProps> = ({ realtimeTicket
             </div>
           ) : (
             <div className="space-y-2.5 max-h-[500px] overflow-y-auto pr-1">
-              {tickets.map((t) => {
+              {tickets
+                .filter((t, idx, arr) => arr.findIndex((x) => x.id === t.id || x.ticketNumber === t.ticketNumber) === idx)
+                .map((t) => {
                 const isSelected = selectedTicket?.id === t.id;
                 return (
                   <div
@@ -461,7 +465,12 @@ export const AuthorDashboard: React.FC<AuthorDashboardProps> = ({ realtimeTicket
         isOpen={showNewTicketModal}
         onClose={() => setShowNewTicketModal(false)}
         onTicketCreated={(ticket) => {
-          setTickets((prev) => [ticket, ...prev]);
+          setTickets((prev) => {
+            if (prev.some((t) => t.id === ticket.id || t.ticketNumber === ticket.ticketNumber)) {
+              return prev;
+            }
+            return [ticket, ...prev];
+          });
           setSelectedTicket(ticket);
         }}
       />

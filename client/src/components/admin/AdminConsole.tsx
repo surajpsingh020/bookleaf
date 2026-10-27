@@ -334,7 +334,9 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ realtimeTicketUpdate
                 <p>No tickets match the selected filters.</p>
               </div>
             ) : (
-              tickets.map((t) => {
+              tickets
+                .filter((t, idx, arr) => arr.findIndex((x) => x.id === t.id || x.ticketNumber === t.ticketNumber) === idx)
+                .map((t) => {
                 const isSelected = selectedTicket?.id === t.id;
                 const isCritical = t.priority === 'Critical';
                 const isHigh = t.priority === 'High';
